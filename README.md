@@ -119,28 +119,6 @@ reference-free `tree_nj`/`tree_ml` stay bias-free and are the better choice for 
 diverse panel; use `--map-tree` when coordinates and cross-study comparability
 matter more than maximal site recovery, and pick a reference close to the panel.
 
-### AMR
-
-| Question | `ska map` (skTree) | Read mapping (bwa/minimap2 + AMRFinderPlus / ARIBA / abritAMR) |
-|----------|--------------------|----------------------------------------------------------------|
-| Point-mutation resistance in a **conserved core gene** (e.g. `gyrA`, `rpoB`, `katG`, `23S`) | Yes — resolves the SNP fast, in reference coordinates ready to annotate | Yes |
-| **Acquired / accessory** AMR gene present? (plasmid-borne `bla`, `tet`, `aac`, …) | **No** — a gene absent from the reference has no k-mers to map; absence ≠ susceptibility | Yes — coverage/identity over a gene database |
-| Resistance from an **indel** or gene truncation | **No** — indels break the split-k-mer flanks | Yes |
-| Gene **copy number** / partial coverage | **No** | Yes — read depth |
-
-The rule of thumb: `ska map` is for **point-mutation surveillance on conserved
-genes**; for the acquired resistome (presence/absence, indels, novel genes) you
-need real read/contig mapping against an AMR database.
-
-### Genes of interest
-
-Same split. To ask *"which SNPs do my samples carry inside gene X that exists in
-the reference?"*, `ska map` against a reference containing X gives you the
-positional variants directly. To ask *"which samples **have** gene X at all?"*,
-or to catch structural variation within it, map reads/contigs with
-bwa/minimap2 and call presence/absence from coverage — `ska map` cannot see what
-is not in the reference.
-
 ## Benchmark vs kSNP4
 
 Head-to-head against **kSNP4 v4.1** under identical resource caps (4 CPU / 12 GB,
