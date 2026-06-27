@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    env:
+      # The SKA2 release the integration tests are written against.
+      SKA_VERSION: "0.5.1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Cache the compiled `ska` binary so integration tests run without paying
+      # the Rust build cost on every job. Cold cache falls back to cargo install.
+      - name: Cache ska binary
+        id: cache-ska
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/ska
+          key: ska-${{ runner.os }}-${{ env.SKA_VERSION }}
+
+      - name: Install ska (SKA2)
+        if: steps.cache-ska.outputs.cache-hit != 'true'
+        run: cargo install ska --version ${{ env.SKA_VERSION }} --locked
+
+      - name: Make ska reachable on PATH
+        run: echo "${HOME}/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install project (with dev + annotate extras)
+        run: uv sync --extra dev --extra annotate --frozen
+
+      - name: Lint
+        run: uv run ruff check sktree tests
+
+      - name: Test
+        run: uv run pytest -q

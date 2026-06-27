@@ -1,0 +1,143 @@
+/* sktree/report_assets/styles.css */
+:root {
+  --ink: #1f2430;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --bg: #f7f8fa;
+  --card: #ffffff;
+  --accent: #2f72c4;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.08);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+header {
+  position: sticky; top: 0; z-index: 5;
+  padding: 12px 20px; background: var(--card);
+  border-bottom: 1px solid var(--line); box-shadow: var(--shadow);
+}
+header h1 { font-size: 17px; margin: 0 0 10px; letter-spacing: -0.01em; }
+#controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+.seg button {
+  margin-right: 2px; padding: 3px 12px; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  border-radius: 6px; font-size: 12px; font-weight: 600;
+}
+.seg button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.toggle {
+  padding: 3px 12px; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  border-radius: 6px; font-size: 12px; font-weight: 600;
+}
+.toggle:hover:not(:disabled) { background: #f1f5f9; border-color: #cbd5e1; }
+.toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.note { color: var(--muted); font-size: 12px; font-style: italic; }
+
+main { display: flex; gap: 16px; padding: 16px 20px; align-items: flex-start; }
+
+#viz {
+  display: flex; align-items: stretch; flex: 1 1 auto; min-width: 0;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow); padding: 12px; gap: 0;
+}
+#tree { flex: 1 1 0; min-width: 240px; }
+#strip { width: 14px; flex: 0 0 auto; margin: 0 8px 0 4px; align-self: flex-start; }
+#strip canvas { display: block; border-radius: 2px; }
+
+#aln-col { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; position: relative; }
+/* The toolbar floats over the empty band above the first alignment row (the
+   tree reserves the same headroom above its first tip), so the canvas can start
+   at the very top of the column and its rows line up with the tree tips. The
+   bar is click-through except for its buttons, so a drag started in the band
+   still pans the alignment. */
+#aln-toolbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 4;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 6px;
+  padding: 2px 2px 8px; pointer-events: none;
+}
+#aln-toolbar > * { pointer-events: auto; }
+#aln-toolbar .aln-label { font-weight: 600; font-size: 13px; white-space: nowrap; }
+#aln-toolbar .spacer { flex: 1 1 auto; pointer-events: none; }
+#aln-toolbar button {
+  min-width: 30px; padding: 2px 8px; cursor: pointer; font-size: 13px;
+  border: 1px solid var(--line); background: #fff; border-radius: 6px; color: var(--ink);
+}
+#aln-toolbar button:hover { background: #f1f5f9; border-color: #cbd5e1; }
+#aln-toolbar button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+#aln-wrap { overflow: hidden; flex: 1 1 0; min-width: 0; }
+#aln { display: block; cursor: grab; }
+#aln.dragging { cursor: grabbing; }
+
+#panels { flex: 0 0 280px; }
+#panels > div:not(:empty) {
+  margin-bottom: 14px; padding: 12px 14px;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow);
+}
+#panels h2 {
+  font-size: 12px; margin: 0 0 8px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--muted); font-weight: 700;
+}
+#panels h2:not(:first-child) { margin-top: 12px; }
+
+table.kv { border-collapse: collapse; width: 100%; }
+table.kv td { padding: 3px 4px; border-bottom: 1px solid #f1f1f4; }
+table.kv tr:last-child td { border-bottom: none; }
+table.kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.warn { color: #b42318; }
+
+/* Output files sit in the side panel under the Bases/Clusters legend. The list
+   is capped and scrolls on its own, so a long run's outputs never push the panel
+   past the viewport; the heading and note stay put while only the rows move. */
+.files-note { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+ul.files {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 320px; overflow-y: auto; scrollbar-gutter: stable;
+}
+ul.files li { padding: 6px 0; border-bottom: 1px solid #f1f1f4; }
+ul.files li:last-child { border-bottom: none; }
+.files .fname {
+  display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; font-weight: 600; color: var(--ink);
+}
+.files .fdesc { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.swatch {
+  display: inline-block; width: 12px; height: 12px; margin-right: 4px;
+  vertical-align: middle; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+#tooltip {
+  position: fixed; background: #111827; color: #fff; padding: 5px 9px;
+  border-radius: 6px; font-size: 12px; line-height: 1.35; pointer-events: none;
+  z-index: 10; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Wide side-by-side layout: syncSidebarHeight() pins the sidebar to the
+   visualization's height, and the Output files card (last in the column)
+   flexes to fill the leftover space so both columns end on one bottom line.
+   The other cards keep their natural height; only the file list scrolls. */
+@media (min-width: 901px) {
+  #panels { display: flex; flex-direction: column; }
+  #panels > div:not(:empty) { flex: 0 0 auto; }
+  #panels > #files-panel:not(:empty) {
+    flex: 1 1 auto; min-height: 0; margin-bottom: 0;
+    display: flex; flex-direction: column;
+  }
+  #panels > #files-panel ul.files { flex: 1 1 auto; min-height: 0; max-height: none; }
+}
+
+/* Narrow viewports: stack the side panel below the visualization so the
+   alignment canvas keeps the full width instead of being squeezed out. */
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  #panels { flex: 1 1 auto; width: 100%; }
+  #panels > div:not(:empty) { display: inline-block; width: auto; vertical-align: top; margin-right: 14px; }
+}

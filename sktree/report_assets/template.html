@@ -1,0 +1,52 @@
+<!-- sktree/report_assets/template.html -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skTree report</title>
+<style>$STYLES</style>
+</head>
+<body>
+<header>
+  <h1>skTree report</h1>
+  <div id="controls">
+    <span id="tree-switcher" class="seg"></span>
+    <button type="button" class="toggle" id="all-snps-toggle" aria-pressed="false">show all variable SNPs</button>
+    <button type="button" class="toggle" id="diff-toggle" aria-pressed="false">highlight differences only</button>
+    <span id="trunc-note" class="note"></span>
+  </div>
+</header>
+<main>
+  <section id="viz">
+    <div id="tree" title="drag to pan, scroll to zoom the tree"></div>
+    <div id="strip"></div>
+    <div id="aln-col">
+      <div id="aln-toolbar">
+        <span class="aln-label" title="scroll to zoom &middot; drag to pan">SNP alignment</span>
+        <span class="spacer"></span>
+        <button id="bases-toggle" title="show base letters (zoom in to fit them)" aria-pressed="false">ABC</button>
+        <button id="zoom-out" title="zoom out">&minus;</button>
+        <button id="zoom-fit" title="fit width">fit</button>
+        <button id="zoom-in" title="zoom in">+</button>
+      </div>
+      <div id="aln-wrap"><canvas id="aln"></canvas></div>
+    </div>
+  </section>
+  <aside id="panels">
+    <div id="stats-panel"></div>
+    <div id="warn-panel"></div>
+    <div id="annot-panel"></div>
+    <div id="legend"></div>
+    <div id="files-panel"></div>
+  </aside>
+</main>
+<div id="tooltip" hidden></div>
+<script id="sktree-data" type="application/json">$DATA_JSON</script>
+<script>$TPV_JS</script>
+<script>$APP_JS</script>
+<script>
+  window.SKTREE_RENDER(JSON.parse(document.getElementById("sktree-data").textContent));
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Keep the build context tiny: only pyproject.toml, README.md and sktree/ are
+# COPYed in the Dockerfile. Everything else is noise that would bust the cache.
+.git
+.github
+.gitignore
+.venv
+tests
+docs
+*.md
+!README.md
+Dockerfile
+.dockerignore
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
+.playwright-mcp
