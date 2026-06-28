@@ -102,7 +102,8 @@ warning).
 
 | Module | Responsibility | Depends on |
 |--------|----------------|------------|
-| `engine/ska.py` | subprocess wrapper for the `ska` binary | (stdlib only) |
+| `inputs.py` | resolve CLI files + manifest into named `Sample`s (auto-pair reads) | (stdlib only) |
+| `engine/ska.py` | subprocess wrapper for the `ska` binary | `inputs` (`Sample`) |
 | `engine/ml.py` | optional IQ-TREE / RAxML-NG wrapper | (stdlib only) |
 | `snps.py` | parse SNP FASTA, classify core/majority/variable loci | NumPy |
 | `kselect.py` | Kchooser-style optimal odd-*k* selection | (stdlib only) |
@@ -442,17 +443,61 @@ That ambition dictates almost every decision in `html_report.py` and the vendore
   path* you hand it, so `ska build /data/SAMD00052601.fa.gz …` would stamp that
   whole path onto every tip label, alignment row, matrix column, and cluster id —
   ugly and unwieldy. Rather than patch the labels at display time in three
-  different renderers, we fix it once, upstream: `engine/ska.py` writes a
-  tab-separated **file list** (`name<TAB>path`) and passes it with `ska build -f`,
-  where `clean_sample_name` has already stripped the directory and the trailing
+  different renderers, we fix it once, upstream in `inputs.py`: `resolve_inputs`
+  turns the raw CLI files (and any `--manifest`) into named `Sample`s, where
+  `clean_sample_name` has already stripped the directory and the trailing
   compression/FASTA suffixes (`SAMD00052601.fa.gz → SAMD00052601`), de-duplicating
-  any collisions. Every downstream artifact inherits the clean stem for free,
-  because the name was right before any of them ever saw it.
+  any collisions. `engine/ska.py` then writes the tab-separated **file list**
+  (`name<TAB>file…`) straight from those samples and passes it with `ska build -f`.
+  Every downstream artifact inherits the clean stem for free, because the name was
+  right before any of them ever saw it.
 
 > **The throughline:** a report that has to survive offline machines and a decade
 > of bit-rot is a *packaging* problem as much as a rendering one. Inline the
 > assets, own your rendering, bound the payload, fix names at the source, and make
 > every optional input fail loud or skip clean. Do that and the bottle floats.
+
+### 3.8 Reads and assemblies, side by side (`inputs.py`)
+
+SKA2 has always called SNPs straight from FASTQ reads — `ska build` takes a file
+list where a line can be either `name<TAB>assembly` or `name<TAB>fwd<TAB>rev` for
+paired reads, and it filters sequencing error with `--min-count`. The gap was
+never in the engine; it was in *how a user spells the request*. A shell glob
+hands you `strainB_R1.fastq.gz strainB_R2.fastq.gz` as two unrelated paths, but
+they are **one sample**. Something has to know that.
+
+We kept that knowledge out of the engine. `inputs.py` is a small, pure module
+whose entire job is to turn "whatever the user typed" into a list of `Sample`s —
+a frozen dataclass of `(name, files, is_reads)` — that `engine/ska.py` can render
+into SKA's native file list without ever thinking about pairing again. The
+separation matters: `build()` takes `Sequence[Sample]`, so it is identical
+whether a sample came from a glob, a `--manifest`, or a future input source we
+haven't imagined.
+
+The auto-pairing itself is a tuple of regexes tried **most-specific first**:
+`_R1/_R2` (with an optional Illumina `_001` lane suffix), then `.R1/.R2`, then the
+bare `_1/_2`. Order is the whole game — a greedy `_1/_2` rule would wrongly split
+`sample_R1` on the `_1`, so the `_R[12]` pattern has to win first. Two FASTQs that
+share a base and carry opposite mate numbers collapse into one read `Sample`; a
+lone FASTQ with no mate is still valid (SKA treats single FASTQ as assembly-like).
+
+Two sharp edges worth knowing:
+
+- **A paired sample is one input, not two.** The "need at least two genomes" guard
+  counts *samples*, so `strainB_R1 strainB_R2` alone is correctly rejected as a
+  single-sample run — a test pins exactly this (`test_single_paired_read_sample_counts_as_one_input`).
+- **`--auto-k` needs an assembly.** `kselect` scans plaintext FASTA to score
+  *k*-mer uniqueness; it cannot parse FASTQ. So `_resolve_k` filters to the
+  *assembly* inputs before probing, and on a **reads-only** run it logs a warning
+  and falls back to the fixed `-k` (default 31) rather than silently doing the
+  wrong thing. Read-error flags (`--min-count`/`--min-qual`/`--qual-filter`) are
+  likewise only emitted when the build actually contains reads — SKA ignores them
+  for assemblies, but we don't pass noise we don't need.
+
+> **The throughline:** when a tool you wrap already supports a feature, the work
+> is rarely in the engine — it's in the *input grammar*. Give that grammar its own
+> module, make it pure and exhaustively tested, and the engine layer stays as dumb
+> as it should be.
 
 ---
 
