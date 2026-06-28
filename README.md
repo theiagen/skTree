@@ -104,27 +104,27 @@ sktree run genomes/*.fasta -o results/ --html
 See `docs/PLAN.md` for the output contract, `docs/RESEARCH.md` for the design
 rationale, and `FOR-DEVELOPERS.md` for the architecture deep-dive.
 
-## Applications: `ska map` vs read mapping (bwa/minimap2)
+## Reference-anchored mode (`--reference` / `--map-tree`)
 
-`--reference`/`--map-tree` use SKA2's `ska map`, which slides each sample's
-split k-mers along a reference and records the middle base wherever the two
-flanks match the reference exactly. That makes it fast and alignment-free, but
-it is **split-k-mer matching, not read mapping** — it only resolves substitutions
-at positions whose flanking context is conserved. Anything that breaks the
-flanks (indels, recombination, divergent or accessory sequence) simply drops out
-as missing. Knowing where that boundary sits tells you when to reach for `ska
-map` and when to reach for bwa/minimap2 instead.
+By default skTree is fully reference-free: the alignment and trees come from
+`ska align`, where columns are matched k-mers with no genome coordinates. Two
+optional flags add a reference-anchored view on top of that:
 
-### Tree building
+- **`--reference REF`** runs SKA2's `ska map` to place each sample's SNPs onto
+  `REF`, giving every column a genomic coordinate. You get `ref_aligned.fasta`
+  (one row per sample at reference positions) plus, with the `[annotate]` extra,
+  per-SNP gene and codon-effect annotation.
+- **`--map-tree`** builds trees from that reference-anchored alignment
+  (`tree_ref_nj`, and `tree_ref_parsimony` / `tree_ref_ml` if you also pass
+  `--parsimony` / `--ml`).
 
-A reference-anchored alignment gives every column a genomic coordinate, so you
-can mask known repeats/recombination tracts, line trees up across studies that
-share a reference, and read variants positionally. The cost is **reference
-bias**: only sites whose flanks match the reference are recovered, so a distant
-or poorly-chosen reference silently shrinks the alignment. skTree's default
-reference-free `tree_nj`/`tree_ml` stay bias-free and are the better choice for a
-diverse panel; use `--map-tree` when coordinates and cross-study comparability
-matter more than maximal site recovery, and pick a reference close to the panel.
+Use these when coordinates matter — to mask known repeat/recombination tracts or
+to line trees up across studies that share a reference. The trade-off is
+**reference bias**: `ska map` records a base only where a sample's k-mer flanks
+match the reference exactly, so indels, recombination, and accessory or divergent
+sequence drop out as missing, and a distant reference silently shrinks the
+alignment. For a diverse panel, prefer the default reference-free
+`tree_nj`/`tree_ml`; reach for `--map-tree` with a reference close to the panel.
 
 ## Benchmark vs kSNP4
 
