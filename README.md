@@ -9,6 +9,12 @@ into an end-to-end phylogenetics workflow in Python: optimal-k selection,
 core/majority SNP partitioning, a SNP matrix, and neighbor-joining / parsimony /
 maximum-likelihood trees.
 
+![skTree HTML report — interactive tree viewer, SNP alignment, and run statistics](docs/assets/report.png)
+
+*The self-contained `--html` report: switch between NJ / parsimony / ML and the
+reference-anchored map-trees, scrub the SNP alignment, and read run statistics —
+all in one file that opens offline in any browser.*
+
 > **Scope.** Like SKA, skTree is built for *closely related* isolates (outbreak /
 > surveillance scale). Recall degrades beyond ~1% sequence divergence — skTree
 > warns you when inputs look too divergent.
