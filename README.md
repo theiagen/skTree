@@ -118,9 +118,6 @@ sktree run genomes/*.fasta -o results/ --html
 | `--threads N` | CPU threads passed to SKA |
 | `-v` / `--debug` | console verbosity: `-v` is INFO, `--debug` is DEBUG (the file log is always full DEBUG) |
 
-See `docs/PLAN.md` for the output contract, `docs/RESEARCH.md` for the design
-rationale, and `FOR-DEVELOPERS.md` for the architecture deep-dive.
-
 ## Reads & manifests
 
 skTree builds trees from FASTA assemblies, paired-end FASTQ reads, or any mix of
@@ -224,5 +221,4 @@ Full methodology and results in [`benchmarks/README.md`](benchmarks/README.md).
 Feature-complete: assemblies and/or paired-end reads → SNPs →
 NJ/parsimony/ML trees → reports, plus optional reference-based SNP annotation
 (`ska map` + pyrodigal gene calling) and reference-anchored map-trees
-(`--map-tree`), covered by 131 tests. See `docs/PLAN.md` for the full milestone
-history.
+(`--map-tree`), covered by 131 tests.

@@ -12,3 +12,8 @@ results/
 .demo/
 *.skf
 .playwright-mcp/
+
+# Untracked developer/design docs (kept local only)
+/docs/PLAN.md
+/docs/RESEARCH.md
+/FOR-DEVELOPERS.md
