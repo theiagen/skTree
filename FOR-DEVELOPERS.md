@@ -103,6 +103,7 @@ warning).
 | Module | Responsibility | Depends on |
 |--------|----------------|------------|
 | `inputs.py` | resolve CLI files + manifest into named `Sample`s (auto-pair reads) | (stdlib only) |
+| `logconfig.py` | console + always-on DEBUG file logging into the output dir | (stdlib only) |
 | `engine/ska.py` | subprocess wrapper for the `ska` binary | `inputs` (`Sample`) |
 | `engine/ml.py` | optional IQ-TREE / RAxML-NG wrapper | (stdlib only) |
 | `snps.py` | parse SNP FASTA, classify core/majority/variable loci | NumPy |
@@ -498,6 +499,55 @@ Two sharp edges worth knowing:
 > is rarely in the engine — it's in the *input grammar*. Give that grammar its own
 > module, make it pure and exhaustively tested, and the engine layer stays as dumb
 > as it should be.
+
+### 3.9 Logging for the moment it breaks (`logconfig.py`)
+
+A tool that shells out to `ska` and a handful of optional engines has a specific
+failure signature: *the useful evidence is the exact command, its stderr, and
+which step we were on* — and all three are trivially lost if they only ever
+reached the terminal. By the time a run dies on a cluster at 2 a.m., the
+scrollback is gone.
+
+So skTree logs to **two sinks with different jobs**. The console handler follows
+`-v`/`--debug` for live use. The file handler is the interesting one: it writes
+`<outdir>/sktree.log` at **DEBUG, always**, no matter how quiet the console is.
+That asymmetry is deliberate — a default, flagless run still leaves a full
+post-mortem trail on disk. You never have to "re-run with `--debug`" after the
+fact, which is exactly the moment you can't (the inputs may be gone, the failure
+may be intermittent).
+
+The single highest-value line in the whole feature lives in `engine/ska.py`'s
+`_run`: before every subprocess it logs `running: <shlex-joined argv>`, and on a
+non-zero exit it folds **both the command and stderr into the `SkaError`
+itself**:
+
+```
+ska exited with code 101
+  command: ska build -o out/combined -k 31 -f out/combined.filelist.tsv
+  stderr : ... real.fasta has no valid sequence
+```
+
+Before this, a failed build told you only the return code — you couldn't even see
+*what* was run. Now the error is self-contained and the same detail is in the log.
+
+Two design choices worth calling out:
+
+- **`logconfig.configure_logging` is idempotent.** It tears down existing handlers
+  before adding new ones, so a second run in the same process (or a test that
+  configures twice) never double-writes every line. The file opens in `"w"` mode:
+  one log *per run*, not an ever-growing append no one prunes.
+- **The CLI is the only caller, and it owns the catch-all.** `run_pipeline` stays
+  free of logging-setup concerns; `cli.main` configures the sinks, logs a context
+  header (version, argv, resolved `ska` version), and wraps the run in a
+  two-tier `except`: known `SkaError`/`ValueError` get a one-line console message,
+  anything unexpected gets `logger.exception(...)` so the **traceback lands in the
+  file**. Either way the last thing printed is *where the log is*. A crash you
+  can't see is a crash you can't fix.
+
+> **The throughline:** logging isn't decoration you sprinkle on at the end — it's
+> the contract that the tool will be debuggable by someone who wasn't watching.
+> Decide what evidence a failure needs, then guarantee that evidence reaches disk
+> *before* you need it.
 
 ---
 

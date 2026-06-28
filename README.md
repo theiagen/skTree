@@ -16,6 +16,14 @@ interactive tree — here neighbor-joining, tips colored by fastbaps cluster —
 beside the full SNP alignment, with run statistics and population-structure
 clusters, all in one file that opens offline in any browser.*
 
+![skTree HTML report, zoomed in — per-base SNP alignment grid linked to a selected tree tip, beside the run-statistics, bases legend, clusters, and output-files panels](docs/assets/sktree-report-zoom.png)
+
+*Zoomed in: the alignment is a real per-base SNP grid (A/C/G/T color-coded, with
+a "highlight differences only" toggle), and selecting a tree tip links it across
+to its row — handy for tracing which isolate carries which allele. The side
+panel keeps the run statistics, base legend, fastbaps clusters, and the list of
+output files one glance away.*
+
 > **Scope.** Like SKA, skTree is built for *closely related* isolates (outbreak /
 > surveillance scale). Recall degrades beyond ~1% sequence divergence — skTree
 > warns you when inputs look too divergent.
@@ -89,6 +97,7 @@ sktree run genomes/*.fasta -o results/ --html
 | `clusters.csv` | population-structure cluster per sample (`--cluster`, needs `fastbaps`) |
 | `report.html` | self-contained interactive report: trees + alignment + stats (`--html`) |
 | `summary.txt` | run parameters and SNP counts |
+| `sktree.log` | full DEBUG run log: every `ska` command, timings, and any error (always written) |
 
 ### Key options
 
@@ -107,6 +116,7 @@ sktree run genomes/*.fasta -o results/ --html
 | `--cluster` | assign population-structure clusters with `fastbaps` (writes `clusters.csv`) |
 | `--html` | write a self-contained interactive HTML report (runs `fastbaps` if available) |
 | `--threads N` | CPU threads passed to SKA |
+| `-v` / `--debug` | console verbosity: `-v` is INFO, `--debug` is DEBUG (the file log is always full DEBUG) |
 
 See `docs/PLAN.md` for the output contract, `docs/RESEARCH.md` for the design
 rationale, and `FOR-DEVELOPERS.md` for the architecture deep-dive.
@@ -144,6 +154,27 @@ read pair. Read-error filtering (`--min-count`, `--min-qual`, `--qual-filter`)
 applies only to read samples; assemblies pass through untouched. Note that
 `--auto-k` needs at least one assembly to probe k — a **reads-only** run keeps the
 fixed `-k` (default 31) and logs a warning if `--auto-k` was requested.
+
+## Debugging a failed run
+
+Every run writes a full-detail log to `<outdir>/sktree.log`, no matter how quiet
+the console was. It records the skTree version, the exact command line, the
+resolved `ska` version, and **every `ska` invocation verbatim** — so when a run
+fails you can see precisely which command broke and reproduce it by hand.
+
+If a run fails, skTree prints the failing command and the engine's stderr, then
+tells you where the full log is:
+
+```
+error: ska exited with code 101
+  command: ska build -o out/combined -k 31 -f out/combined.filelist.tsv
+  stderr : ... real.fasta has no valid sequence
+See out/sktree.log for the full log.
+```
+
+`-v` raises the console to INFO and `--debug` to DEBUG, but neither is required
+for the post-mortem: the file log is always at DEBUG. Attach `sktree.log` when
+reporting an issue.
 
 ## Reference-anchored mode (`--reference` / `--map-tree`)
 
@@ -193,5 +224,5 @@ Full methodology and results in [`benchmarks/README.md`](benchmarks/README.md).
 Feature-complete: assemblies and/or paired-end reads → SNPs →
 NJ/parsimony/ML trees → reports, plus optional reference-based SNP annotation
 (`ska map` + pyrodigal gene calling) and reference-anchored map-trees
-(`--map-tree`), covered by 120 tests. See `docs/PLAN.md` for the full milestone
+(`--map-tree`), covered by 131 tests. See `docs/PLAN.md` for the full milestone
 history.
