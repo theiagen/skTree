@@ -16,43 +16,9 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from ..inputs import Sample
+
 PathLike = str | Path
-
-_COMPRESSION_SUFFIXES = {".gz", ".bz2", ".xz", ".zst", ".zip"}
-_SEQUENCE_SUFFIXES = {".fasta", ".fa", ".fna", ".ffn", ".faa", ".fastq", ".fq"}
-
-
-def clean_sample_name(path: PathLike) -> str:
-    """Derive a tidy sample label from an input file path.
-
-    Strips the directory and any trailing compression and FASTA/FASTQ
-    extensions, so ``/data/SAMD00052601.fa.gz`` becomes ``SAMD00052601``.
-    ``ska`` otherwise names samples by the verbatim path it is handed, which
-    makes for unreadable tree tips and alignment rows.
-    """
-    name = Path(path).name
-    base = name
-    for suffix in reversed(Path(name).suffixes):
-        if suffix.lower() in _COMPRESSION_SUFFIXES or suffix.lower() in _SEQUENCE_SUFFIXES:
-            base = base[: -len(suffix)]
-        else:
-            break
-    return base or name
-
-
-def _build_file_list(seq_files: Sequence[PathLike]) -> list[tuple[str, str]]:
-    """Map each input file to a unique clean sample name (``name``, ``path``)."""
-    seen: dict[str, int] = {}
-    rows: list[tuple[str, str]] = []
-    for f in seq_files:
-        name = clean_sample_name(f)
-        if name in seen:
-            seen[name] += 1
-            name = f"{name}_{seen[name]}"
-        else:
-            seen[name] = 1
-        rows.append((name, str(f)))
-    return rows
 
 
 class SkaError(RuntimeError):
@@ -106,36 +72,48 @@ class SkaRunner:
 
     def build(
         self,
-        seq_files: Sequence[PathLike],
+        samples: Sequence[Sample],
         out_prefix: PathLike,
         k: int = 31,
         *,
         single_strand: bool = False,
         min_count: int | None = None,
         min_qual: int | None = None,
+        qual_filter: str | None = None,
         threads: int | None = None,
     ) -> Path:
-        """Create a split-k-mer file from one or more FASTA/FASTQ inputs.
+        """Create a split-k-mer file from assembly and/or paired-read samples.
 
-        Returns the path to the produced ``<out_prefix>.skf``.
+        Each sample becomes one file-list line: ``name<TAB>file`` for an
+        assembly/single file, or ``name<TAB>fwd<TAB>rev`` for paired reads. The
+        read error filters (``--min-count``/``--min-qual``/``--qual-filter``) are
+        only forwarded when at least one sample is reads, so pure-assembly builds
+        are invoked exactly as before. Returns the produced ``<out_prefix>.skf``.
         """
         if k % 2 == 0:
             raise ValueError(f"k-mer size must be odd (got {k}); split k-mers need a center base")
         out_prefix = Path(out_prefix)
+        has_reads = any(s.is_reads for s in samples)
         args: list[str] = ["build", "-o", str(out_prefix), "-k", str(k)]
         if single_strand:
             args.append("--single-strand")
-        if min_count is not None:
-            args += ["--min-count", str(min_count)]
-        if min_qual is not None:
-            args += ["--min-qual", str(min_qual)]
+        if has_reads:
+            if min_count is not None:
+                args += ["--min-count", str(min_count)]
+            if min_qual is not None:
+                args += ["--min-qual", str(min_qual)]
+            if qual_filter is not None:
+                args += ["--qual-filter", qual_filter]
         if threads is not None:
             args += ["--threads", str(threads)]
-        # A file-list (name<TAB>path per line) lets us hand ska clean sample
-        # labels instead of letting it name samples after the verbatim path.
+        # A file-list (name<TAB>path[<TAB>path2] per line) lets us hand ska clean
+        # sample labels instead of letting it name samples after verbatim paths,
+        # and is the only way to declare paired-end reads.
         file_list = out_prefix.with_suffix(".filelist.tsv")
         file_list.write_text(
-            "".join(f"{name}\t{path}\n" for name, path in _build_file_list(seq_files)),
+            "".join(
+                "\t".join([s.name, *(str(f) for f in s.files)]) + "\n" for s in samples
+            ),
             encoding="utf-8",
         )
         args += ["-f", str(file_list)]

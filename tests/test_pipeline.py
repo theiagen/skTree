@@ -75,6 +75,42 @@ def test_requires_two_inputs(tmp_path):
         run_pipeline([tmp_path / "only.fasta"], tmp_path / "out")
 
 
+def test_single_paired_read_sample_counts_as_one_input(tmp_path):
+    # Two FASTQ files that pair into ONE sample are not two inputs: the minimum
+    # is two *samples*, not two files.
+    with pytest.raises(ValueError, match="two input"):
+        run_pipeline(
+            [tmp_path / "S_R1.fastq.gz", tmp_path / "S_R2.fastq.gz"], tmp_path / "out"
+        )
+
+
+def test_assembly_paths_filters_out_reads():
+    from sktree.inputs import Sample
+    from sktree.pipeline import _assembly_paths
+
+    samples = [
+        Sample("asm", (Path("asm.fasta"),), is_reads=False),
+        Sample("reads", (Path("r_1.fq.gz"), Path("r_2.fq.gz")), is_reads=True),
+    ]
+    assert _assembly_paths(samples) == [Path("asm.fasta")]
+
+
+def test_resolve_k_falls_back_when_reads_only(caplog):
+    import logging
+
+    from sktree.inputs import Sample
+    from sktree.pipeline import _resolve_k
+
+    reads_only = [
+        Sample("a", (Path("a_1.fq.gz"), Path("a_2.fq.gz")), is_reads=True),
+        Sample("b", (Path("b_1.fq.gz"), Path("b_2.fq.gz")), is_reads=True),
+    ]
+    with caplog.at_level(logging.WARNING):
+        k = _resolve_k(reads_only, k=27, auto_k=True)
+    assert k == 27  # kept the default; auto-k cannot read FASTQ
+    assert any("auto-k" in r.message or "assembl" in r.message.lower() for r in caplog.records)
+
+
 def test_max_divergence_uses_snp_rate_not_kmer_proportion(tmp_path):
     # Real ska distance layout: the k-mer proportion (col 4) is ~k-fold inflated;
     # true divergence is SNP count (col 3) / (match + mismatch).
@@ -125,6 +161,33 @@ def test_full_run_produces_all_outputs(synthetic_genomes, tmp_path):
     }
     # summary reports SNP counts
     assert "core SNPs" in result.summary.read_text()
+
+
+@needs_ska
+def test_full_run_on_mixed_assembly_and_reads(assembly_plus_reads, tmp_path):
+    out = tmp_path / "out"
+    result = run_pipeline(assembly_plus_reads["inputs"], out, k=31)
+    assert result.nj_tree.exists()
+    # both the assembly and the auto-paired read sample appear as tree tips.
+    import dendropy
+
+    tree = dendropy.Tree.get(path=str(result.nj_tree), schema="newick")
+    assert {leaf.taxon.label for leaf in tree.leaf_node_iter()} == {"asm", "strainB"}
+    # the planted SNP shows up as at least one variable site.
+    assert ">asm" in result.alignment.read_text()
+
+
+@needs_ska
+def test_manifest_drives_a_run(synthetic_genomes, tmp_path):
+    # A manifest with no positional inputs builds a tree from the listed files.
+    manifest = tmp_path / "samples.tsv"
+    manifest.write_text(
+        "".join(f"{p.stem}\t{p}\n" for p in synthetic_genomes)
+    )
+    out = tmp_path / "out"
+    result = run_pipeline([], out, manifest=manifest, k=31)
+    assert result.nj_tree.exists()
+    assert result.alignment.read_text().count(">") == 3
 
 
 @needs_ska

@@ -24,7 +24,17 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="run the full pipeline: inputs -> SNPs -> tree")
-    run.add_argument("inputs", nargs="+", type=Path, help="FASTA/FASTQ genome files")
+    run.add_argument(
+        "inputs", nargs="*", type=Path,
+        help="FASTA assemblies and/or paired FASTQ reads. Paired reads are "
+             "auto-detected by _R1/_R2, _1/_2 or .R1/.R2 naming.",
+    )
+    run.add_argument(
+        "--manifest", type=Path, default=None,
+        help="TSV sample sheet: 'name<TAB>file' (assembly/single) or "
+             "'name<TAB>fwd<TAB>rev' (paired reads) per line. Combines with "
+             "positional inputs.",
+    )
     run.add_argument("-o", "--outdir", type=Path, required=True, help="output directory")
     run.add_argument("-k", type=int, default=31, help="odd k-mer size (default: 31)")
     run.add_argument(
@@ -38,6 +48,19 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--majority-threshold", type=float, default=0.5,
         help="present-fraction cutoff for a 'majority' SNP (default: 0.5)",
+    )
+    run.add_argument(
+        "--min-count", type=int, default=3,
+        help="minimum k-mer count for read samples; filters sequencing error "
+             "(default: 3; ignored for assemblies)",
+    )
+    run.add_argument(
+        "--min-qual", type=int, default=None,
+        help="minimum base quality for read samples (ska default: 20)",
+    )
+    run.add_argument(
+        "--qual-filter", choices=("no-filter", "middle", "strict"), default=None,
+        help="read quality-filtering strategy (ska default: strict)",
     )
     run.add_argument(
         "--parsimony", action="store_true",
@@ -73,6 +96,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "run" and not args.inputs and args.manifest is None:
+        parser.error("provide input files and/or --manifest")
+
     if getattr(args, "map_tree", False) and args.reference is None:
         parser.error("--map-tree requires --reference")
 
@@ -86,10 +112,14 @@ def main(argv: list[str] | None = None) -> int:
             result = run_pipeline(
                 args.inputs,
                 args.outdir,
+                manifest=args.manifest,
                 k=args.k,
                 auto_k=args.auto_k,
                 min_freq=args.min_freq,
                 majority_threshold=args.majority_threshold,
+                min_count=args.min_count,
+                min_qual=args.min_qual,
+                qual_filter=args.qual_filter,
                 parsimony=args.parsimony,
                 ml=args.ml,
                 reference=args.reference,

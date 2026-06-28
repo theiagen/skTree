@@ -16,23 +16,13 @@ from sktree.engine.ska import (
     SkaError,
     SkaNotFoundError,
     SkaRunner,
-    clean_sample_name,
 )
+from sktree.inputs import Sample
 
 
-@pytest.mark.parametrize(
-    "path,expected",
-    [
-        ("/data/SAMD00052601.fa.gz", "SAMD00052601"),
-        ("sample1.fasta", "sample1"),
-        ("reads.fastq.gz", "reads"),
-        ("/x/y/strain.fna", "strain"),
-        ("E.coli.fa", "E.coli"),
-        ("noext", "noext"),
-    ],
-)
-def test_clean_sample_name(path, expected):
-    assert clean_sample_name(path) == expected
+def _asm(path: Path) -> Sample:
+    """Helper: a one-file assembly sample named after the file stem."""
+    return Sample(Path(path).stem, (Path(path),), is_reads=False)
 
 
 @pytest.fixture
@@ -54,10 +44,8 @@ def test_missing_binary_raises():
         SkaRunner(binary="definitely-not-a-real-binary-xyz")
 
 
-def test_build_argv(fake_run, tmp_path, monkeypatch):
-    runner = SkaRunner()
-    files = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
-    captured: dict[str, str] = {}
+def _capture_filelist(fake_run, monkeypatch, captured):
+    """Patch subprocess.run to record argv and snapshot the file-list contents."""
 
     def _fake(argv, **kwargs):
         fake_run.append((argv, kwargs))
@@ -66,7 +54,15 @@ def test_build_argv(fake_run, tmp_path, monkeypatch):
         return subprocess.CompletedProcess(argv, 0, stdout="OUT", stderr="ERR")
 
     monkeypatch.setattr("sktree.engine.ska.subprocess.run", _fake)
-    out = runner.build(files, out_prefix=tmp_path / "all", k=15)
+
+
+def test_build_argv(fake_run, tmp_path, monkeypatch):
+    runner = SkaRunner()
+    files = [tmp_path / "a.fasta", tmp_path / "b.fasta"]
+    captured: dict[str, str] = {}
+    _capture_filelist(fake_run, monkeypatch, captured)
+
+    out = runner.build([_asm(f) for f in files], out_prefix=tmp_path / "all", k=15)
     argv = fake_run[0][0]
     assert argv[:1] == ["/usr/bin/ska"]
     assert argv[1] == "build"
@@ -76,24 +72,54 @@ def test_build_argv(fake_run, tmp_path, monkeypatch):
     assert "-f" in argv
     assert f"a\t{files[0]}" in captured["filelist"]
     assert f"b\t{files[1]}" in captured["filelist"]
+    # pure-assembly builds never apply the read error filter.
+    assert "--min-count" not in argv
     assert out == tmp_path / "all.skf"
+
+
+def test_build_paired_reads_filelist_and_min_count(fake_run, tmp_path, monkeypatch):
+    runner = SkaRunner()
+    captured: dict[str, str] = {}
+    _capture_filelist(fake_run, monkeypatch, captured)
+
+    fwd, rev = tmp_path / "S_1.fastq.gz", tmp_path / "S_2.fastq.gz"
+    reads = Sample("S", (fwd, rev), is_reads=True)
+    runner.build([reads], out_prefix=tmp_path / "all", k=21, min_count=3)
+
+    argv = fake_run[0][0]
+    # paired reads become a three-column file-list line: name<TAB>fwd<TAB>rev
+    assert f"S\t{fwd}\t{rev}" in captured["filelist"]
+    # the read error filter is applied because a read sample is present.
+    assert "--min-count" in argv and "3" in argv
 
 
 def test_build_rejects_even_k(fake_run, tmp_path):
     runner = SkaRunner()
     with pytest.raises(ValueError, match="odd"):
-        runner.build([tmp_path / "a.fasta"], out_prefix=tmp_path / "x", k=16)
+        runner.build([_asm(tmp_path / "a.fasta")], out_prefix=tmp_path / "x", k=16)
 
 
-def test_build_single_strand_and_min_count(fake_run, tmp_path):
+def test_build_min_count_skipped_for_assemblies(fake_run, tmp_path):
     runner = SkaRunner()
+    # min_count given, but no read samples -> ska build gets no --min-count.
     runner.build(
-        [tmp_path / "a.fastq"], out_prefix=tmp_path / "x", k=21,
+        [_asm(tmp_path / "a.fasta")], out_prefix=tmp_path / "x", k=21,
         single_strand=True, min_count=4,
     )
     argv = fake_run[0][0]
     assert "--single-strand" in argv
-    assert "--min-count" in argv and "4" in argv
+    assert "--min-count" not in argv
+
+
+def test_build_qual_filter_forwarded(fake_run, tmp_path):
+    runner = SkaRunner()
+    runner.build(
+        [Sample("S", (tmp_path / "S_1.fq.gz", tmp_path / "S_2.fq.gz"), is_reads=True)],
+        out_prefix=tmp_path / "x", k=21, min_qual=25, qual_filter="middle",
+    )
+    argv = fake_run[0][0]
+    assert "--min-qual" in argv and "25" in argv
+    assert "--qual-filter" in argv and "middle" in argv
 
 
 def test_align_to_file(fake_run, tmp_path):

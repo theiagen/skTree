@@ -22,6 +22,7 @@ from .engine.cluster import FastbapsError, FastbapsNotAvailable, FastbapsRunner
 from .engine.ml import MlError, MlNotAvailable, MlTreeBuilder
 from .engine.ska import SkaError, SkaRunner
 from .html_report import build_report_data, write_html_report
+from .inputs import Sample, resolve_inputs
 from .kselect import select_k
 from .parsimony import parsimony_tree
 from .phylo import neighbor_joining, to_newick
@@ -303,14 +304,54 @@ def _build_map_trees(
     )
 
 
+def _assembly_paths(samples: list[Sample]) -> list[Path]:
+    """The single sequence file of every assembly sample (reads excluded).
+
+    Only these are usable by the k-selector, which parses inputs as plaintext
+    FASTA -- it cannot read FASTQ or gzipped files.
+    """
+    return [s.files[0] for s in samples if not s.is_reads]
+
+
+def _resolve_k(samples: list[Sample], k: int, auto_k: bool) -> int:
+    """Choose k, honoring ``--auto-k`` only when assemblies are available.
+
+    Auto-selection needs at least one assembly to scan; a reads-only run keeps
+    the provided default ``k`` (and warns), because FASTQ uniqueness is both
+    unparseable here and noisy from sequencing error.
+    """
+    if not auto_k:
+        return k
+    assemblies = _assembly_paths(samples)
+    if not assemblies:
+        logger.warning(
+            "Ignoring --auto-k: no assembly inputs to scan (reads-only run); "
+            "using k=%d. Pass an explicit -k to override.",
+            k,
+        )
+        return k
+    selection = select_k(assemblies)
+    logger.info(
+        "Auto-selected k=%d (uniqueness %.4f on %s)",
+        selection.k,
+        selection.uniqueness,
+        selection.representative.name,
+    )
+    return selection.k
+
+
 def run_pipeline(
     inputs: list[Path],
     outdir: Path,
     *,
+    manifest: Path | None = None,
     k: int = 31,
     auto_k: bool = False,
     min_freq: float = 0.9,
     majority_threshold: float = 0.5,
+    min_count: int = 3,
+    min_qual: int | None = None,
+    qual_filter: str | None = None,
     parsimony: bool = False,
     ml: bool = False,
     reference: Path | None = None,
@@ -320,23 +361,28 @@ def run_pipeline(
     threads: int | None = None,
     runner: SkaRunner | None = None,
 ) -> RunResult:
-    if len(inputs) < 2:
+    samples = resolve_inputs(inputs, manifest)
+    if len(samples) < 2:
         raise ValueError("need at least two input genomes to call SNPs")
     outdir.mkdir(parents=True, exist_ok=True)
     runner = runner or SkaRunner()
 
-    if auto_k:
-        selection = select_k(inputs)
-        k = selection.k
-        logger.info(
-            "Auto-selected k=%d (uniqueness %.4f on %s)",
-            k,
-            selection.uniqueness,
-            selection.representative.name,
-        )
+    k = _resolve_k(samples, k, auto_k)
 
-    logger.info("Building split-k-mer file (k=%d) from %d inputs", k, len(inputs))
-    skf = runner.build(inputs, out_prefix=outdir / "combined", k=k, threads=threads)
+    n_reads = sum(1 for s in samples if s.is_reads)
+    logger.info(
+        "Building split-k-mer file (k=%d) from %d sample(s) (%d read set(s))",
+        k, len(samples), n_reads,
+    )
+    skf = runner.build(
+        samples,
+        out_prefix=outdir / "combined",
+        k=k,
+        min_count=min_count,
+        min_qual=min_qual,
+        qual_filter=qual_filter,
+        threads=threads,
+    )
 
     logger.info("Writing reference-free SNP alignment (min-freq=%s)", min_freq)
     alignment = outdir / "alignment.fasta"
