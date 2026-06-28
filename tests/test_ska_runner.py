@@ -207,3 +207,43 @@ def test_nonzero_exit_raises(monkeypatch, tmp_path):
     runner = SkaRunner()
     with pytest.raises(SkaError, match="kaboom"):
         runner.distance(tmp_path / "all.skf")
+
+
+def test_failure_error_includes_the_command(monkeypatch, tmp_path):
+    # A failed ska call must report the exact command so it can be re-run by hand.
+    monkeypatch.setattr("sktree.engine.ska.shutil.which", lambda _: "/usr/bin/ska")
+    monkeypatch.setattr(
+        "sktree.engine.ska.subprocess.run",
+        lambda argv, **k: subprocess.CompletedProcess(argv, 1, stdout="", stderr="bad k"),
+    )
+    runner = SkaRunner()
+    with pytest.raises(SkaError) as excinfo:
+        runner.distance(tmp_path / "all.skf")
+    message = str(excinfo.value)
+    assert "ska distance" in message  # the command line is in the error
+    assert str(tmp_path / "all.skf") in message
+
+
+def test_run_logs_command_at_debug(fake_run, tmp_path, caplog):
+    import logging
+
+    runner = SkaRunner()
+    with caplog.at_level(logging.DEBUG, logger="sktree.ska"):
+        runner.distance(tmp_path / "all.skf", output=tmp_path / "d.tsv")
+    debug_text = "\n".join(r.message for r in caplog.records)
+    assert "ska distance" in debug_text
+    assert str(tmp_path / "all.skf") in debug_text
+
+
+def test_run_logs_stderr_on_failure(monkeypatch, tmp_path, caplog):
+    import logging
+
+    monkeypatch.setattr("sktree.engine.ska.shutil.which", lambda _: "/usr/bin/ska")
+    monkeypatch.setattr(
+        "sktree.engine.ska.subprocess.run",
+        lambda argv, **k: subprocess.CompletedProcess(argv, 3, stdout="", stderr="panic: x"),
+    )
+    runner = SkaRunner()
+    with caplog.at_level(logging.ERROR, logger="sktree.ska"), pytest.raises(SkaError):
+        runner.distance(tmp_path / "all.skf")
+    assert any("panic: x" in r.message for r in caplog.records)

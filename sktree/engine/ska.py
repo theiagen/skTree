@@ -11,6 +11,8 @@ The minimal pipeline is ``build`` (one .skf holding all samples) then ``align``
 
 from __future__ import annotations
 
+import logging
+import shlex
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -19,6 +21,8 @@ from pathlib import Path
 from ..inputs import Sample
 
 PathLike = str | Path
+
+logger = logging.getLogger("sktree.ska")
 
 
 class SkaError(RuntimeError):
@@ -52,16 +56,28 @@ class SkaRunner:
     # -- internal -------------------------------------------------------------
 
     def _run(self, args: Sequence[str], capture: bool = True) -> str:
-        """Run ``ska <args>``; return stdout. Raise :class:`SkaError` on failure."""
+        """Run ``ska <args>``; return stdout. Raise :class:`SkaError` on failure.
+
+        The exact command is logged at ``DEBUG`` before running and, on failure,
+        echoed into both the log (with stderr at ``ERROR``) and the raised
+        :class:`SkaError`, so a broken run can be reproduced from the log alone.
+        """
         argv = [self.binary, *args]
+        command = shlex.join(argv)
+        logger.debug("running: %s", command)
         proc = subprocess.run(
             argv,
             capture_output=capture,
             text=True,
         )
         if proc.returncode != 0:
+            stderr = proc.stderr or proc.stdout or "(no output captured)"
+            logger.error("ska failed (exit %d): %s", proc.returncode, command)
+            logger.error("ska stderr: %s", stderr.strip())
             raise SkaError(
-                f"ska exited with code {proc.returncode}: {proc.stderr or proc.stdout}"
+                f"ska exited with code {proc.returncode}\n"
+                f"  command: {command}\n"
+                f"  stderr : {stderr.strip()}"
             )
         return proc.stdout
 
