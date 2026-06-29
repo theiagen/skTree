@@ -1,0 +1,13 @@
+NCBI Pathogen Detection source clusters for the cross-species benchmark.
+
+close cohorts = 10 isolates drawn from a single SNP cluster (PDS):
+  pseudomonas_close  PDS000112090.225   Pseudomonas_aeruginosa   PDG000000036.1718
+  salmonella_close   PDS000065758.1951  Salmonella               PDG000000002.4121
+  ecoli_close        PDS000181369.481   Escherichia_coli_Shigella PDG000000004.6131
+  shigella_close     PDS000267218.1     Escherichia_coli_Shigella PDG000000004.6131
+
+diverse cohorts = 10 isolates, each from a different SNP cluster of the same species.
+  shigella_diverse spans flexneri / sonnei / boydii / sp. (see sh_diverse.species)
+
+Accession lists in this directory (one GCA per line) are the exact genomes staged
+and benchmarked; .fasta leaf labels are these accessions with '.' rewritten to '_'.
