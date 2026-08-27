@@ -19,7 +19,7 @@ concurrency:
 env:
   REGISTRY: us-central1-docker.pkg.dev
   IMAGE: us-central1-docker.pkg.dev/general-theiagen/sktree/sktree
-  DOCKERHUB_IMAGE: theiagen/sktree
+  DOCKERHUB_IMAGE: thanhleviet/sktree
 
 permissions:
   contents: read
