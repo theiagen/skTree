@@ -1,0 +1,60 @@
+# git-cliff configuration. Generates CHANGELOG.md from Conventional Commits.
+# git-cliff is a release-time tool, not a project dependency. To regenerate
+# after tagging a release:
+#
+#   npx git-cliff -o CHANGELOG.md
+#
+# The output is curated by hand before release. Versions follow SemVer tags
+# (vMAJOR.MINOR.PATCH).
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented here.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}\
+- {{ commit.message | upper_first }} (`{{ commit.id | truncate(length=6, end="") }}`)
+{% endfor %}\
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = true
+tag_pattern = "v[0-9]*"
+topo_order = false
+sort_commits = "newest"
+
+commit_parsers = [
+  { message = "^\\w+\\(security\\)", group = "Security" },
+  { message = "^feat", group = "Added" },
+  { message = "^feature", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^revert", group = "Changed" },
+  { message = "^docs", skip = true },
+  { message = "^chore", skip = true },
+  { message = "^style", skip = true },
+  { message = "^test", skip = true },
+  { message = "^ci", skip = true },
+  { message = "^build", skip = true },
+  { message = ".*", skip = true },
+]
