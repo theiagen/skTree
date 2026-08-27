@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A wrapper around the SKA2 split-k-mer engine for reference-free, alignment-free SNP discovery and phylogenetics"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "skTree authors" }]
 keywords = ["bioinformatics", "snp", "phylogenetics", "k-mer", "ska", "ska2"]
 dependencies = [
